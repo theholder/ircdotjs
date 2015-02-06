@@ -4,16 +4,16 @@ var utils = require('util');
 var events = require('events');
 utils.inherits(Client, events.EventEmitter);
 function Client(host, port, name, groups) {
-		this.host = host;
-		this.port = port;
-		this.name = name;
-		this.groups = groups || [];
-		this.listeners = [];
-		this.socket = new net.Socket();
-		var self = this;
-		this._connections = {};
-		this._connect();
-		this._handle();
+	this.host = host;
+	this.port = port;
+	this.name = name;
+	this.groups = groups || [];
+	this.listeners = [];
+	this.socket = new net.Socket();
+	var self = this;
+	this._connections = {};
+	this._connect();
+	this._handle();
 };
 Client.prototype._connect = function() {
 	var self = this;
