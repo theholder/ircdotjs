@@ -14,6 +14,7 @@ An event-based library for connecting to one or multiple irc groups... work in p
 
 How do I use it?
 ----------------
+	run 'npm install' inside the bot dir then,
 	edit conf.js fill in the values then run 'node bot.js'
 
 License
