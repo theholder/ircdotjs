@@ -3,7 +3,7 @@ irc.js
 
 Version
 -------
-0.1
+0.0.2a
 
 
 What is it?

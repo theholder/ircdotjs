@@ -2,6 +2,8 @@ var net = require('net');
 var _ = require("underscore");
 var utils = require('util');
 var events = require('events');
+var tls = require('tls');
+
 utils.inherits(Client, events.EventEmitter);
 function Client(host, port, name, groups) {
 	this.host = host;
@@ -12,15 +14,18 @@ function Client(host, port, name, groups) {
 	this.socket = new net.Socket();
 	var self = this;
 	this._connections = {};
+	this.userlist = {};
 	this._connect();
 	this._handle();
 };
+
 Client.prototype._connect = function() {
 	var self = this;
 	self.socket.setEncoding('utf-8');
 	self.socket.setNoDelay();
 	self.socket.connect(self.port , self.host);
 }
+
 Client.prototype._send = function(data) {
 	var self = this;
 	self.socket.write(data + '\n', 'utf8', function() {} );
@@ -28,13 +33,17 @@ Client.prototype._send = function(data) {
 
 
 Client.prototype._msg = function(chan, msg) {
-	var ret = "PRIVMSG " + chan + " : " + msg;
+	var ret = "PRIVMSG " + chan + " :" + msg;
 	this._send(ret);
 }
 
 
 Client.prototype.join = function(chan) {
 	this.socket.write("JOIN " + chan + "\r\n");
+}
+
+Client.prototype.part = function(chan) {
+	this.socket.write("PART " + chan + "\r\n");
 }
 
 Client.prototype._handle = function() {
@@ -45,8 +54,28 @@ Client.prototype._handle = function() {
 			self._send('PONG :' + info[1]);
 		});
 
-
 		self._on(/^(?:[:](\S+) )?(\S+)(?: (?!:)(.+?))?(?: [:](.+))?$/i, function(info) {
+			if(info[2] == "353") {
+				var chan = info[3].split("=")[1].replace(/ /g,'');
+				var users = info[4].trim().split(/ +/);
+				self.userlist[chan] = [];
+				users.forEach(function(user) {
+					var m = user.match(/^(.)(.*)$/);
+					if(m) {
+						var modes = ["~", "+", "&", "%", "@"];
+						if(modes.indexOf(m[1]) > -1) {
+							var usern = m[2];
+						} else {
+							var usern = m[0];
+						}
+						self.userlist[chan].push(usern);
+					}
+				});
+				var data = JSON.stringify({"channel": chan, "users": self.userlist[chan]});
+				self.emit("userlist", data)
+			}
+
+
 			if(info[2] == "PRIVMSG") {
 				var hostmask = info[0].split(/[!@]/);
 				var who = hostmask[0].replace(":", "");
@@ -60,6 +89,12 @@ Client.prototype._handle = function() {
 				var hostmask = info[0].split(/[!@]/);
 				var who = hostmask[0].replace(":", "");
 				var chan = info[4];
+				//and of course now we join em
+				if(who != self.name) {
+					if(self.userlist[chan].indexOf(who) === -1) {
+						self.userlist[chan].push(who);
+					}
+				}
 				var data = JSON.stringify({"nick": who, "channel": chan, "hostmask": hostmask});
 				self.emit("join" , data);
 			}
@@ -67,7 +102,11 @@ Client.prototype._handle = function() {
 			if(info[2] == "PART") {
 				var hostmask = info[0].split(/[!@]/);
 				var who = hostmask[0].replace(":", "");
-				var chan = info[4];
+				var chan = info[3];
+				//here comes the userlist removal crap...
+				if(self.userlist[chan].indexOf(who) > 0) {
+					_.without(self.userlist[chan], who);
+				}
 				var data = JSON.stringify({"nick": who, "channel": chan, "hostmask": hostmask});
 				self.emit("part" , data);
 			}
